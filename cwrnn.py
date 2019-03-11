@@ -19,11 +19,11 @@ class ClockworkRNN(Model):
         units_per_period: Positive integer or list of positive integers. Number
             of units for each internal RNN. If list, it must have the same 
             length as `periods`.
+        input_shape: Shape of the input data.
         output_units: Positive integer. Dimensionality of the output space.
         output_activation: String or callable. Activation function to use.
             If you don't specify anything, no activation is applied
             (ie. "linear" activation: `a(x) = x`). 
-        input_shape: Shape of the input data.
         return_sequences: Boolean (default False). Whether to return the last 
             output in the output sequence, or the full sequence.
         reverse: Boolean (default True). Whether to sort the periods in 
@@ -35,12 +35,13 @@ class ClockworkRNN(Model):
             inside the CW-RNN. Can be one of "SimpleRNN", "LSTM", "GRU", or
             another RNN sub-class, but must support masking (e.g., CuDNNRNN are
             not supported yet).
-        dense_kwargs: DIctionary. Optional arguments for the trailing Dense 
+        dense_kwargs: Dictionary. Optional arguments for the trailing Dense 
             unit (`activation` and `units` keys will be ignored).
+        rnn_kwargs: Dictionary. Optional arguments for the internal RNNs 
+            (`return_sequences` will be ignored).
     """
 
-    def __init__(self, periods, units_per_period, output_units,
-                 input_shape=None,
+    def __init__(self, periods, units_per_period, input_shape, output_units,
                  output_activtion='linear',
                  return_sequences=False,
                  reverse=True,
@@ -56,7 +57,6 @@ class ClockworkRNN(Model):
         self.dtype = getattr(layers, rnn_dtype) if type(
             rnn_dtype) is str else rnn_dtype
         self.periods = periods
-        self.output_activation = output_activtion
         self.rnn_kwargs = rnn_kwargs or {}
         self.rnn_kwargs['return_sequences'] = True
         self.dense_kwargs = dense_kwargs or {}
