@@ -1,14 +1,13 @@
 import keras.backend as K
 import numpy as np
 from keras import Model, layers
-from keras.layers import (Concatenate, Dense, Input, Lambda, Masking,
-                          TimeDistributed)
+from keras.layers import (
+    Concatenate, Dense, Input, Lambda, Masking, TimeDistributed
+)
 
 
 class ClockworkRNN(Model):
-    """
-    Clockwork RNN (CW-RNN)
-    ----------------------
+    """Clockwork RNN (CW-RNN)
 
     Constructs a CW-RNN from RNNs of a given type (`SimpleRNN` by default, as
     in the original 
@@ -26,8 +25,8 @@ class ClockworkRNN(Model):
             (ie. "linear" activation: `a(x) = x`). 
         return_sequences: Boolean (default False). Whether to return the last 
             output in the output sequence, or the full sequence.
-        reverse: Boolean (default True). Whether to sort the periods in 
-            decreasing (default, as in the original paper) or increasing order.
+        sort_ascending: Boolean (default True). Whether to sort the periods in 
+            ascending or descending order (default, as in the original paper).
         mask_value: Float (default 0). Values that will appear in the masked 
             steps of each internal RNN (i.e., the ones that do not satisfy 
             `step % period == 0`).
@@ -35,18 +34,21 @@ class ClockworkRNN(Model):
             inside the CW-RNN. Can be one of "SimpleRNN", "LSTM", "GRU", or
             another RNN sub-class, but must support masking (e.g., CuDNNRNN are
             not supported yet).
+        include_top: Whether to include the fully-connected layer at the top of
+            the network.
         dense_kwargs: Dictionary. Optional arguments for the trailing Dense 
             unit (`activation` and `units` keys will be ignored).
         rnn_kwargs: Dictionary. Optional arguments for the internal RNNs 
-            (`return_sequences` will be ignored).
+            (`return_sequences` and `return_state` will be ignored).
     """
 
     def __init__(self, periods, units_per_period, input_shape, output_units,
                  output_activtion='linear',
                  return_sequences=False,
-                 reverse=True,
+                 sort_ascending=False,
                  mask_value=0.,
                  rnn_dtype="SimpleRNN",
+                 include_top=True,
                  dense_kwargs=None,
                  **rnn_kwargs):
         if type(units_per_period) is list:
@@ -59,6 +61,7 @@ class ClockworkRNN(Model):
         self.periods = periods
         self.rnn_kwargs = rnn_kwargs or {}
         self.rnn_kwargs['return_sequences'] = True
+        self.rnn_kwargs['return_state'] = False
         self.dense_kwargs = dense_kwargs or {}
         self.dense_kwargs['activation'] = output_activtion
         self.dense_kwargs['units'] = output_units
@@ -69,7 +72,7 @@ class ClockworkRNN(Model):
         last_output = self.input_layer
 
         for period, units in sorted(zip(self.periods, self.units_per_period),
-                                    reverse=reverse,
+                                    reverse=not sort_ascending,
                                     key=lambda t: t[0]):
             to_dense, to_next_block = self._build_clockwork_block(
                 last_output, units, period)
@@ -78,7 +81,9 @@ class ClockworkRNN(Model):
 
         concat = Concatenate(name='rnn_outputs')(rnns)
 
-        if return_sequences:
+        if not include_top:
+            self.output_layer = concat
+        elif return_sequences:
             self.output_layer = TimeDistributed(
                 Dense(**self.dense_kwargs, name='cw_output'))(concat)
         else:
@@ -105,7 +110,7 @@ class ClockworkRNN(Model):
     def _build_clockwork_block(self, x, units, period):
         mask = Lambda(lambda x: self._apply_mask(x, period, value=self.mask_value),
                       name='filter_at_{}'.format(period))(x)
-        mask = Masking(-1., name='mask_at_{}'.format(period))(mask)
+        mask = Masking(self.mask_value, name='mask_at_{}'.format(period))(mask)
         hidden = self.dtype(units=units,
                             name='rnn_at_{}'.format(period),
                             **self.rnn_kwargs)(mask)
@@ -114,4 +119,3 @@ class ClockworkRNN(Model):
         delayed = Concatenate(name='concat_at_{}'.format(period))([x, delayed])
 
         return hidden, delayed
-
