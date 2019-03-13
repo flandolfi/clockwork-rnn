@@ -12,10 +12,9 @@ def clockwork(dtype : RNN):
     inner recurrent layers.
 
     # Arguments
-        dtype: String or RNN sub-class. The RNN type that will be used inside 
-            the CW-RNN. Can be one of "SimpleRNN", "LSTM", "GRU", or another
-            RNN sub-class, but must support masking (e.g., CuDNNRNN are not 
-            supported yet).
+        dtype: RNN sub-class. The RNN type that will be used inside the 
+            CW-RNN. Must support masking (e.g., CuDNNRNN are not supported
+            yet).
     
     # Returns
         The decorated class.
