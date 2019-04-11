@@ -2,7 +2,7 @@
 
 This repository contains a high-level implementation of the Clockwork-RNN model (CW-RNN, see [[1]](https://arxiv.org/abs/1402.3511)). 
 
-The `ClockworkRNN` class constructs a CW-RNN using Keras Functional API by "unrolling" the DAG graph of the model, instead of computing its block-diagonal matrix representation. This allows the user to use any kind of RNN layer within the CW-RNN, as long as it support masking (e.g., `CuDNNGRU` and `CuDNNLSTM` are not supported yet).
+The `ClockworkRNN` class constructs a CW-RNN using Keras Functional API by "unrolling" the DAG graph of the model, instead of computing its block-diagonal matrix representation. This allows the user to use any kind of RNN layer within the CW-RNN.
 
 ## Basic usage
 
@@ -32,14 +32,14 @@ Non-trainable params: 0
 ```
 
 
-This model uses `SimpleRNN`s as internal units (by default, as in the original paper), each one with 8 recurrent units. If we want to use an `LSTM` instead, we can just change the `rnn_dtype` parameter, as in the next example
+This model uses `SimpleRNN`s as internal units (by default, as in the original paper), each one with 8 recurrent units. If we want to use an `CuDNNLSTM` instead, we can just change the `rnn_dtype` parameter, as in the next example
 ```python
 model = Sequential()
 model.add(InputLayer((None, 1)))
 model.add(ClockworkRNN(periods=[1, 2, 4, 8, 16, 32, 64, 128], 
                        units_per_period=8, 
                        output_units=1, 
-                       rnn_dtype='LSTM'))
+                       rnn_dtype='CuDNNLSTM'))
 model.compile(optimizer='adam', loss='mse')
 model.summary()
 ```
@@ -47,10 +47,10 @@ which produces the following output
 ```
 Layer (type)                 Output Shape              Param #   
 =================================================================
-ClockworkLSTM (ClockworkRNN) (None, 1)                 9793      
+ClockworkCuDNNLSTM (Clockwor (None, 1)                 10049     
 =================================================================
-Total params: 9,793
-Trainable params: 9,793
+Total params: 10,049
+Trainable params: 10,049
 Non-trainable params: 0
 ```
 

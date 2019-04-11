@@ -1,7 +1,8 @@
 import numpy as np
 import keras.backend as K
-from keras.layers import (Concatenate, Dense, Lambda, Masking, Layer,
-                          TimeDistributed, recurrent)
+from keras import layers
+from keras.layers import (Concatenate, Dense, Lambda, Layer, MaxPooling1D, 
+                          UpSampling1D, TimeDistributed)
 
 
 class ClockworkRNN(Layer):
@@ -32,8 +33,8 @@ class ClockworkRNN(Layer):
         dense_kwargs: Dictionary. Optional arguments for the trailing Dense 
             unit (`activation` and `units` keys will be ignored).
         rnn_dtype: The type of RNN to use as clockwork layer. Can be a string
-            ("SimpleRNN", "GRU", "LSTM") or any RNN subclass, but must support
-            masking (e.g, CuDNNGRU and CuDNNLSTM are not supported).
+            ("SimpleRNN", "GRU", "LSTM", "CuDNNGRU", "CuDNNLSTM") or any RNN 
+            subclass.
         rnn_kwargs: Dictionary. Optional arguments for the internal RNNs 
             (`return_sequences` and `return_state` will be ignored).
     
@@ -51,7 +52,7 @@ class ClockworkRNN(Layer):
                  rnn_kwargs=None,
                  **kwargs):
         if type(rnn_dtype) is str:
-            self.rnn_dtype = getattr(recurrent, rnn_dtype) 
+            self.rnn_dtype = getattr(layers, rnn_dtype) 
         else:
             self.rnn_dtype = rnn_dtype
         
@@ -143,49 +144,36 @@ class ClockworkRNN(Layer):
         else:
             return input_shape[:-2] + (out_dim,)
 
-    def _apply_mask(self, x, period, value=0):
-        # Ugly fix
-        if K.ndim(x) < 3 or np.any(np.equal(K.int_shape(x), None)):
-            return x
-
-        mask = np.zeros((K.int_shape(x)[-2], 1))
-        mask[::period, 0] = 1
-        mask = K.constant(mask)
-
-        return x*mask + value*(1 - mask)
-
     def _delay(self, x):
         return K.temporal_padding(x, (1, 0))[:, :-1]
 
     def _build_clockwork_block(self, units, period, input_shape):
-        lambda_filter = Lambda(lambda x: self._apply_mask(x, period, 
-                                                value=self.mask_value),
-                                name='filter_at_{}'.format(period))
-        mask = Masking(self.mask_value, name='mask_at_{}'.format(period))
+        pool = MaxPooling1D(1, period, name='pool_at_{}'.format(period))
         rnn = self.rnn_dtype(units=units, name='rnn_at_{}'.format(period), 
                              **self.rnn_kwargs)
-        lambda_delay = Lambda(lambda x: self._delay(x), 
-                                name='delay_at_{}'.format(period))
+        unpool = UpSampling1D(period, name='unpool_at_{}'.format(period))
+        delay = Lambda(lambda x: self._delay(x), 
+                       name='delay_at_{}'.format(period))
         concat = Concatenate(name='concat_at_{}'.format(period))
         
-        block = (lambda_filter, mask, rnn, lambda_delay, concat)
+        block = (pool, rnn, unpool, delay, concat)
         
-        lambda_filter.build(input_shape)
-        mask.build(input_shape)
+        pool.build(input_shape)
         rnn.build(input_shape)
         self._trainable_weights.extend(rnn.trainable_weights)
         rnn_output_shape = rnn.compute_output_shape(input_shape)
-        lambda_delay.build(rnn_output_shape)
+        unpool.build(input_shape)
+        delay.build(rnn_output_shape)
         concat.build([input_shape, rnn_output_shape])
 
         return block, rnn_output_shape, \
             concat.compute_output_shape([input_shape, rnn_output_shape])
 
-    def _call_clockwork_block(self, x, lambda_f, mask, rnn, lambda_d, concat):
-        filtered = lambda_f(x)
-        masked = mask(filtered)
-        to_dense = rnn(masked)
-        delayed = lambda_d(to_dense)
+    def _call_clockwork_block(self, x, pool, rnn, unpool, delay, concat):
+        pooled = pool(x)
+        rnn_out = rnn(pooled)
+        to_dense = unpool(rnn_out)
+        delayed = delay(to_dense)
         to_next_block = concat([x, delayed])
 
         return to_dense, to_next_block
