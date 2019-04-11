@@ -37,8 +37,8 @@ class ClockworkRNN(Layer):
             masking (e.g, CuDNNGRU and CuDNNLSTM are not supported).
         rnn_kwargs: Dictionary. Optional arguments for the internal RNNs 
             (`return_sequences` and `return_state` will be ignored).
+    
     """
-
     def __init__(self, periods, 
                  units_per_period, 
                  output_units,
