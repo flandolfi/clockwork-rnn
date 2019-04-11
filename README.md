@@ -22,15 +22,13 @@ model.summary()
 ```
 which produces the following output
 ```
-_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
-clockwork_SimpleRNN (Clockwo (None, 1)                 2497      
+ClockworkSimpleRNN (Clockwor (None, 1)                 2497      
 =================================================================
 Total params: 2,497
 Trainable params: 2,497
 Non-trainable params: 0
-_________________________________________________________________
 ```
 
 
@@ -47,15 +45,13 @@ model.summary()
 ```
 which produces the following output
 ```
-_________________________________________________________________
 Layer (type)                 Output Shape              Param #   
 =================================================================
-clockwork_LSTM (ClockworkRNN (None, 1)                 9793      
+ClockworkLSTM (ClockworkRNN) (None, 1)                 9793      
 =================================================================
 Total params: 9,793
 Trainable params: 9,793
 Non-trainable params: 0
-_________________________________________________________________
 ```
 
 See the code for a more detailed description of the parameters.
