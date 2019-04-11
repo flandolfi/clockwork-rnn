@@ -1,11 +1,10 @@
-import keras.backend as K
 import numpy as np
-from keras import Model, layers
-from keras.layers import (Concatenate, Dense, Input, Lambda, Masking,
+import keras.backend as K
+from keras.layers import (Concatenate, Dense, Lambda, Masking, Layer,
                           TimeDistributed, SimpleRNN, LSTM, GRU, RNN)
 
 
-def clockwork(dtype : RNN):
+def clockwork(dtype: RNN):
     """Clockwork class decorator.
 
     Returns a Clockwork-RNN (CW-RNN) model using the given RNN sub-class as 
@@ -19,10 +18,8 @@ def clockwork(dtype : RNN):
     # Returns
         The decorated class.
     """
-
-    class Clockwork(Model):
-        """Clockwork RNN 
-        ([Koutnik et al., 2014](https://arxiv.org/abs/1402.3511))
+    class Clockwork(Layer):
+        """Clockwork RNN ([Koutnik et al., 2014](https://arxiv.org/abs/1402.3511)).
 
         Constructs a CW-RNN from RNNs of a given type.
 
@@ -40,7 +37,7 @@ def clockwork(dtype : RNN):
                 "linear" activation: `a(x) = x`). 
             return_sequences: Boolean (default False). Whether to return the 
                 last output in the output sequence, or the full sequence.
-            sort_ascending: Boolean (default True). Whether to sort the 
+            sort_ascending: Boolean (default False). Whether to sort the 
                 periods in ascending or descending order (default, as in the
                 original paper).
             mask_value: Float (default 0). Values that will appear in the
@@ -56,7 +53,6 @@ def clockwork(dtype : RNN):
 
         def __init__(self, periods, 
                      units_per_period, 
-                     input_shape, 
                      output_units,
                      output_activtion='linear',
                      return_sequences=False,
@@ -64,7 +60,13 @@ def clockwork(dtype : RNN):
                      mask_value=0.,
                      include_top=True,
                      dense_kwargs=None,
-                     **rnn_kwargs):
+                     rnn_kwargs=None,
+                     **kwargs):
+            if 'name' not in kwargs:
+                kwargs['name'] = "clockwork_" + dtype.__name__
+            
+            super(Clockwork, self).__init__(**kwargs)
+
             if type(units_per_period) is list:
                 self.units_per_period = units_per_period
             else:
@@ -77,36 +79,75 @@ def clockwork(dtype : RNN):
             self.dense_kwargs = dense_kwargs or {}
             self.dense_kwargs['activation'] = output_activtion
             self.dense_kwargs['units'] = output_units
-            self.input_layer = Input(input_shape, name='cw_input')
+            self.include_top = include_top
+            self.return_sequences = return_sequences
+            self.sort_ascending = sort_ascending
             self.mask_value = mask_value
+            self.blocks = []
 
-            rnns = []
-            last_output = self.input_layer
-
+        def build(self, input_shape):
+            last_shape = input_shape
+            output_shapes = []
+            
             for period, units in sorted(zip(self.periods, 
                                             self.units_per_period),
-                                        reverse=not sort_ascending,
+                                        reverse=not self.sort_ascending,
                                         key=lambda t: t[0]):
-                to_dense, to_next_block = self._build_clockwork_block(
-                    last_output, units, period)
+                block, output_shape, last_shape = self._build_clockwork_block(units, period, last_shape)
+                output_shapes.append(output_shape)
+                self.blocks.append(block)
+
+            self.concat_all = Concatenate(name='rnn_outputs')
+            self.concat_all.build(output_shapes)
+            last_shape = self.concat_all.compute_output_shape(output_shapes)
+
+            if not self.return_sequences:
+                self.lambda_last = Lambda(lambda x: x[:, -1], name='last_output')
+                self.lambda_last.build(last_shape)
+                last_shape = self.lambda_last.compute_output_shape(last_shape)
+
+            if self.include_top:
+                if self.return_sequences:
+                    self.dense = TimeDistributed(Dense(**self.dense_kwargs, 
+                                                       name='cw_output'))
+                else:
+                    self.dense = Dense(**self.dense_kwargs, name='cw_output')
+                    
+                self.dense.build(last_shape)
+                self._trainable_weights.extend(self.dense.trainable_weights)
+                last_shape = self.dense.compute_output_shape(last_shape)
+                    
+            super(Clockwork, self).build(input_shape)
+
+        def call(self, x):
+            rnns = []
+            to_next_block = x
+
+            for block in self.blocks:
+                to_dense, to_next_block = self._call_clockwork_block(
+                    to_next_block, *block)
                 rnns.append(to_dense)
-                last_output = to_next_block
 
-            concat = Concatenate(name='rnn_outputs')(rnns)
+            out = self.concat_all(rnns)
 
-            if not include_top:
-                self.output_layer = concat
-            elif return_sequences:
-                self.output_layer = TimeDistributed(
-                    Dense(**self.dense_kwargs, name='cw_output'))(concat)
+            if not self.return_sequences:
+                out = self.lambda_last(out)
+
+            if self.include_top:
+                out = self.dense(out)
+        
+            return out
+
+        def compute_output_shape(self, input_shape):
+            if self.include_top:
+                out_dim = self.dense_kwargs['units']
             else:
-                last = Lambda(lambda x: x[:, -1], name='last_output')(concat)
-                self.output_layer = Dense(**self.dense_kwargs, 
-                                          name='cw_output')(last)
+                out_dim = np.sum(self.units_per_period)
 
-            super(Clockwork, self).__init__(name=dtype.__name__,
-                                            inputs=self.input_layer,
-                                            outputs=self.output_layer)
+            if self.return_sequences:
+                return input_shape[:-1] + (out_dim,)
+            else:
+                return input_shape[:-2] + (out_dim,)
 
         def _apply_mask(self, x, period, value=0):
             # Ugly fix
@@ -122,35 +163,55 @@ def clockwork(dtype : RNN):
         def _delay(self, x):
             return K.temporal_padding(x, (1, 0))[:, :-1]
 
-        def _build_clockwork_block(self, x, units, period):
-            mask = Lambda(lambda x: self._apply_mask(x, period, 
-                                                     value=self.mask_value),
-                          name='filter_at_{}'.format(period))(x)
-            mask = Masking(self.mask_value,
-                           name='mask_at_{}'.format(period))(mask)
-            hidden = dtype(units=units,
-                           name='rnn_at_{}'.format(period),
-                           **self.rnn_kwargs)(mask)
-            delayed = Lambda(lambda x: self._delay(x),
-                             name='delay_at_{}'.format(period))(hidden)
-            delayed = Concatenate(
-                name='concat_at_{}'.format(period))([x, delayed])
+        def _build_clockwork_block(self, units, period, input_shape):
+            lambda_filter = Lambda(lambda x: self._apply_mask(x, period, 
+                                                    value=self.mask_value),
+                                   name='filter_at_{}'.format(period))
+            mask = Masking(self.mask_value, name='mask_at_{}'.format(period))
+            rnn = dtype(units=units, name='rnn_at_{}'.format(period), 
+                        **self.rnn_kwargs)
+            lambda_delay = Lambda(lambda x: self._delay(x), 
+                                  name='delay_at_{}'.format(period))
+            concat = Concatenate(name='concat_at_{}'.format(period))
+            
+            block = (lambda_filter, mask, rnn, lambda_delay, concat)
+            
+            lambda_filter.build(input_shape)
+            mask.build(input_shape)
+            rnn.build(input_shape)
+            self._trainable_weights.extend(rnn.trainable_weights)
+            rnn_output_shape = rnn.compute_output_shape(input_shape)
+            lambda_delay.build(rnn_output_shape)
+            concat.build([input_shape, rnn_output_shape])
 
-            return hidden, delayed
+            return block, rnn_output_shape, concat.compute_output_shape([input_shape, rnn_output_shape])
+
+        def _call_clockwork_block(self, x, lambda_filter, mask, rnn, lambda_delay, concat):
+            filtered = lambda_filter(x)
+            masked = mask(filtered)
+            to_dense = rnn(masked)
+            delayed = lambda_delay(to_dense)
+            to_next_block = concat([x, delayed])
+
+            return to_dense, to_next_block
+
+        def get_config(self):
+            config = super(Clockwork, self).get_config()
+            
+            config['units_per_period'] = self.units_per_period
+            config['periods'] = self.periods
+            config['rnn_kwargs'] = self.rnn_kwargs
+            config['dense_kwargs'] = self.dense_kwargs
+            config['include_top'] = self.include_top
+            config['return_sequences'] = self.return_sequences
+            config['sort_ascending'] = self.sort_ascending
+            config['mask_value'] = self.mask_value
+
+            return config
 
     return Clockwork
 
 
-@clockwork
-class ClockworkRNN(SimpleRNN):
-    pass
-
-
-@clockwork
-class ClockworkGRU(GRU):
-    pass
-
-
-@clockwork
-class ClockworkLSTM(LSTM):
-    pass
+ClockworkRNN = clockwork(SimpleRNN)
+ClockworkGRU = clockwork(GRU)
+ClockworkLSTM = clockwork(LSTM)
