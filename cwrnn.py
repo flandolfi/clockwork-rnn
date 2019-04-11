@@ -196,6 +196,7 @@ class ClockworkRNN(Layer):
         
         config['units_per_period'] = self.units_per_period
         config['periods'] = self.periods
+        config['rnn_dtype'] = self.rnn_dtype
         config['rnn_kwargs'] = self.rnn_kwargs
         config['dense_kwargs'] = self.dense_kwargs
         config['include_top'] = self.include_top
