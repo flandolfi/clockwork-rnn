@@ -2,7 +2,7 @@
 
 This repository contains a high-level implementation of the Clockwork-RNN model (CW-RNN, see [[1]](https://arxiv.org/abs/1402.3511)). 
 
-The `ClockworkRNN` class constructs a CW-RNN using Keras Functional API by "unrolling" the DAG graph of the model, instead of computing its block-diagonal matrix representation. This allows the user to use any kind of RNN layer whithin the CW-RNN, as long as it support masking (e.g., `CuDNNGRU` and `CuDNNLSTM` are not supported yet).
+The `ClockworkRNN` class constructs a CW-RNN using Keras Functional API by "unrolling" the DAG graph of the model, instead of computing its block-diagonal matrix representation. This allows the user to use any kind of RNN layer within the CW-RNN, as long as it support masking (e.g., `CuDNNGRU` and `CuDNNLSTM` are not supported yet).
 
 ## Basic usage
 
