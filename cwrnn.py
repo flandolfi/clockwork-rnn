@@ -1,8 +1,7 @@
 import numpy as np
 import keras.backend as K
-from keras import layers
 from keras.layers import (Concatenate, Dense, Lambda, Masking, Layer,
-                          TimeDistributed)
+                          TimeDistributed, recurrent)
 
 
 class ClockworkRNN(Layer):
@@ -52,12 +51,12 @@ class ClockworkRNN(Layer):
                  rnn_kwargs=None,
                  **kwargs):
         if type(rnn_dtype) is str:
-            self.rnn_dtype = getattr(layers, rnn_dtype) 
+            self.rnn_dtype = getattr(recurrent, rnn_dtype) 
         else:
             self.rnn_dtype = rnn_dtype
         
         if 'name' not in kwargs:
-            kwargs['name'] = "clockwork_" + self.rnn_dtype.__name__
+            kwargs['name'] = "Clockwork" + self.rnn_dtype.__name__
         
         super(ClockworkRNN, self).__init__(**kwargs)
 
