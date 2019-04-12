@@ -56,9 +56,7 @@ class ClockworkRNN(Layer):
         else:
             self.rnn_dtype = rnn_dtype
         
-        if 'name' not in kwargs:
-            kwargs['name'] = "Clockwork" + self.rnn_dtype.__name__
-        
+        ClockworkRNN.__name__ = "Clockwork" + self.rnn_dtype.__name__
         super(ClockworkRNN, self).__init__(**kwargs)
 
         if type(units_per_period) is list:
@@ -71,11 +69,9 @@ class ClockworkRNN(Layer):
         self.rnn_kwargs['return_sequences'] = True
         self.rnn_kwargs['return_state'] = False
         self.rnn_kwargs.pop("units", True)
-        self.rnn_kwargs.pop("name", True)
         self.dense_kwargs = dense_kwargs or {}
         self.dense_kwargs['activation'] = output_activtion
         self.dense_kwargs['units'] = output_units
-        self.dense_kwargs['name'] = 'cw_output'
         self.include_top = include_top
         self.return_sequences = return_sequences
         self.sort_ascending = sort_ascending
@@ -93,12 +89,12 @@ class ClockworkRNN(Layer):
             output_shapes.append(output_shape)
             self.blocks.append(block)
 
-        self.concat_all = Concatenate(name='rnn_outputs')
+        self.concat_all = Concatenate()
         self.concat_all.build(output_shapes)
         last_shape = self.concat_all.compute_output_shape(output_shapes)
 
         if not self.return_sequences:
-            self.lambda_last = Lambda(lambda x: x[:, -1], name='last_output')
+            self.lambda_last = Lambda(lambda x: x[:, -1])
             self.lambda_last.build(last_shape)
             last_shape = self.lambda_last.compute_output_shape(last_shape)
 
@@ -151,15 +147,12 @@ class ClockworkRNN(Layer):
         return x[:, :K.cast(timesteps, "int32")]
 
     def _build_clockwork_block(self, units, period, input_shape):
-        pool = MaxPooling1D(1, period, name='pool_at_{}'.format(period))
-        rnn = self.rnn_dtype(units=units, name='rnn_at_{}'.format(period), 
-                             **self.rnn_kwargs)
-        unpool = UpSampling1D(period, name='unpool_at_{}'.format(period))
-        crop = Lambda(lambda x: self._crop(x[0], x[1]), 
-                      name='crop_at_{}'.format(period))
-        delay = Lambda(lambda x: self._delay(x), 
-                       name='delay_at_{}'.format(period))
-        concat = Concatenate(name='concat_at_{}'.format(period))
+        pool = MaxPooling1D(1, period)
+        rnn = self.rnn_dtype(units=units, **self.rnn_kwargs)
+        unpool = UpSampling1D(period)
+        crop = Lambda(lambda x: self._crop(x[0], x[1]))
+        delay = Lambda(lambda x: self._delay(x))
+        concat = Concatenate()
         
         block = (pool, rnn, unpool, crop, delay, concat)
         
