@@ -24,7 +24,7 @@ which produces the following output
 ```
 Layer (type)                 Output Shape              Param #   
 =================================================================
-ClockworkSimpleRNN (Clockwor (None, 1)                 2497      
+clockwork_simple_rnn_1 (Cloc (None, 1)                 2497      
 =================================================================
 Total params: 2,497
 Trainable params: 2,497
@@ -47,7 +47,7 @@ which produces the following output
 ```
 Layer (type)                 Output Shape              Param #   
 =================================================================
-ClockworkCuDNNLSTM (Clockwor (None, 1)                 10049     
+clockwork_cu_dnnlstm_1 (Cloc (None, 1)                 10049     
 =================================================================
 Total params: 10,049
 Trainable params: 10,049
