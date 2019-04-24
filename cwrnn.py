@@ -25,9 +25,6 @@ class ClockworkRNN(Layer):
         sort_ascending: Boolean (default False). Whether to sort the periods
             in ascending or descending order (default, as in the original
             paper).
-        mask_value: Float (default 0). Values that will appear in the masked 
-            steps of each internal RNN (i.e., the ones that do not satisfy
-            `step % period == 0`).
         include_top: Whether to include the fully-connected layer at the top
             of the network.
         dense_kwargs: Dictionary. Optional arguments for the trailing Dense 
@@ -45,7 +42,6 @@ class ClockworkRNN(Layer):
                  output_activtion='linear',
                  return_sequences=False,
                  sort_ascending=False,
-                 mask_value=0.,
                  include_top=True,
                  dense_kwargs=None,
                  rnn_dtype="SimpleRNN",
@@ -75,7 +71,6 @@ class ClockworkRNN(Layer):
         self.include_top = include_top
         self.return_sequences = return_sequences
         self.sort_ascending = sort_ascending
-        self.mask_value = mask_value
         self.blocks = []
 
     def build(self, input_shape):
@@ -189,6 +184,5 @@ class ClockworkRNN(Layer):
         config['include_top'] = self.include_top
         config['return_sequences'] = self.return_sequences
         config['sort_ascending'] = self.sort_ascending
-        config['mask_value'] = self.mask_value
 
         return config
