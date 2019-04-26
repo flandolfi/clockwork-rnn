@@ -16,6 +16,9 @@ class CuDNNSimpleRNN(_CuDNNRNN):
 
     # Arguments
         units: Positive integer, dimensionality of the output space.
+        activation: Activation function to use. Can be either hyperbolic
+            tangent ('tanh') or rectifier  linear ('relu').
+            Default: hyperbolic tangent (`tanh`).
         kernel_initializer: Initializer for the `kernel` weights matrix,
             used for the linear transformation of the inputs.
             (see [initializers](../initializers.md)).
@@ -54,6 +57,7 @@ class CuDNNSimpleRNN(_CuDNNRNN):
     """
 
     def __init__(self, units,
+                 activation='tanh',
                  kernel_initializer='glorot_uniform',
                  recurrent_initializer='orthogonal',
                  bias_initializer='zeros',
@@ -74,6 +78,12 @@ class CuDNNSimpleRNN(_CuDNNRNN):
             return_state=return_state,
             stateful=stateful,
             **kwargs)
+
+        if activation != 'tanh' and activation != 'relu':
+            raise ValueError("Activation must be either 'tanh' or 'relu'. "
+                             "Found '%s'" % str(activation))
+
+        self.activation = activation
 
         self.kernel_initializer = initializers.get(kernel_initializer)
         self.recurrent_initializer = initializers.get(recurrent_initializer)
@@ -101,7 +111,13 @@ class CuDNNSimpleRNN(_CuDNNRNN):
         input_dim = input_shape[-1]
 
         from tensorflow.contrib.cudnn_rnn.python.ops import cudnn_rnn_ops
-        self._cudnn_rnn = cudnn_rnn_ops.CudnnRNNTanh(
+
+        if self.activation == 'tanh':
+            _cudnn_rnn_op = cudnn_rnn_ops.CudnnRNNTanh 
+        else:
+            _cudnn_rnn_op = cudnn_rnn_ops.CudnnRNNRelu 
+
+        self._cudnn_rnn = _cudnn_rnn_op(
             num_layers=1,
             num_units=self.units,
             input_size=input_dim,
