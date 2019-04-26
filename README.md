@@ -9,13 +9,12 @@ The `ClockworkRNN` class constructs a CW-RNN using Keras Functional API by "unro
 For example, to construct a CW-RNN that has in input an audio signal and you want to train the network to predict the next audio sample, you could use the following snippet
 ```python
 from keras.models import Sequential
-from keras.layers import InputLayer
 from cwrnn import ClockworkRNN
 
 model = Sequential()
-model.add(InputLayer((None, 1)))
 model.add(ClockworkRNN(periods=[1, 2, 4, 8, 16, 32, 64, 128],
                        units_per_period=8, 
+                       input_shape=(None, 1), 
                        output_units=1))
 model.compile(optimizer='adam', loss='mse')
 model.summary()
@@ -36,9 +35,9 @@ This model uses `SimpleRNN`s as internal layers (by default, as in the original 
 from cudnnrnn import CuDNNSimpleRNN
 
 model = Sequential()
-model.add(InputLayer((None, 1)))
 model.add(ClockworkRNN(periods=[1, 2, 4, 8, 16, 32, 64, 128], 
-                       units_per_period=8, 
+                       units_per_period=8,
+                       input_shape=(None, 1), 
                        output_units=1, 
                        rnn_dtype=CuDNNSimpleRNN))
 model.compile(optimizer='adam', loss='mse')
@@ -48,19 +47,19 @@ which produces
 ```
 Layer (type)                 Output Shape              Param #   
 =================================================================
-clockwork_cu_dnn_simple_rnn_ (None, 1)                 2561      
+clockwork_cu_dnn_simple_rnn_ (None, 1)                 2497      
 =================================================================
-Total params: 2,561
-Trainable params: 2,561
+Total params: 2,497
+Trainable params: 2,497
 Non-trainable params: 0
 ```
 
 If you want to use any other Keras' recurrent layer instead, you can just pass its class name to the `rnn_dtype` parameter, as in the next example
 ```python
 model = Sequential()
-model.add(InputLayer((None, 1)))
 model.add(ClockworkRNN(periods=[1, 2, 4, 8, 16, 32, 64, 128], 
                        units_per_period=8, 
+                       input_shape=(None, 1), 
                        output_units=1, 
                        rnn_dtype='CuDNNLSTM'))
 model.compile(optimizer='adam', loss='mse')
