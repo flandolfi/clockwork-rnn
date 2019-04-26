@@ -175,6 +175,7 @@ class CuDNNSimpleRNN(_CuDNNRNN):
     def get_config(self):
         config = {
             'units': self.units,
+            'activation': self.activation,
             'kernel_initializer': initializers.serialize(self.kernel_initializer),
             'recurrent_initializer':
                 initializers.serialize(self.recurrent_initializer),
