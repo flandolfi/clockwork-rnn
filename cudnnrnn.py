@@ -119,14 +119,11 @@ class CuDNNSimpleRNN(_CuDNNRNN):
             regularizer=self.recurrent_regularizer,
             constraint=self.recurrent_constraint)
 
-        self.bias = self.add_weight(shape=(self.units * 2,),
+        self.bias = self.add_weight(shape=(self.units,),
                                     name='bias',
                                     initializer=self.bias_initializer,
                                     regularizer=self.bias_regularizer,
                                     constraint=self.bias_constraint)
-
-        self.bias_i = self.bias[:self.units]
-        self.bias_r = self.bias[self.units: self.units * 2]
 
         self.built = True
 
@@ -142,8 +139,7 @@ class CuDNNSimpleRNN(_CuDNNRNN):
                 self.recurrent_kernel,
             ],
             biases=[
-                self.bias_i,
-                self.bias_r,
+                self.bias,
             ],
         )
         outputs, h = self._cudnn_rnn(
