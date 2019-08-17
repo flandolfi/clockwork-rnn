@@ -142,26 +142,30 @@ class ClockworkRNN(Layer):
         return x[:, :K.cast(timesteps, "int32")]
 
     def _build_clockwork_block(self, units, period, input_shape):
+        output_shape = input_shape[:-1] + (units,)
         pool = MaxPooling1D(1, period)
         rnn = self.rnn_dtype(units=units, **self.rnn_kwargs)
         unpool = UpSampling1D(period)
-        crop = Lambda(lambda x: self._crop(x[0], x[1]))
-        delay = Lambda(lambda x: self._delay(x))
+        crop = Lambda(lambda x: self._crop(x[0], x[1]), 
+                      output_shape=output_shape[1:])
+        delay = Lambda(lambda x: self._delay(x), 
+                       output_shape=output_shape[1:])
         concat = Concatenate()
         
         block = (pool, rnn, unpool, crop, delay, concat)
         
         pool.build(input_shape)
-        rnn.build(input_shape)
+        pool_output_shape = pool.compute_output_shape(input_shape)
+        rnn.build(pool_output_shape)
         self._trainable_weights.extend(rnn.trainable_weights)
-        rnn_output_shape = rnn.compute_output_shape(input_shape)
+        rnn_output_shape = rnn.compute_output_shape(pool_output_shape)
         unpool.build(rnn_output_shape)
-        crop.build([unpool.compute_output_shape(input_shape), ()])
-        delay.build(input_shape)
-        concat.build([input_shape, rnn_output_shape])
+        crop.build([unpool.compute_output_shape(rnn_output_shape), ()])
+        delay.build(output_shape)
+        concat.build([input_shape, output_shape])
 
-        return block, rnn_output_shape, \
-            concat.compute_output_shape([input_shape, rnn_output_shape])
+        return block, output_shape, \
+            concat.compute_output_shape([input_shape, output_shape])
 
     def _call_clockwork_block(self, x, pool, rnn, unpool, crop, delay, concat):
         pooled = pool(x)
